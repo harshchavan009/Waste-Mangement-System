@@ -1,0 +1,28 @@
+# Node
+node_modules/
+dist/
+build/
+.npm/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# AI Model
+*.h5
+dummy_dataset/

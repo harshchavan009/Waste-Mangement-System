@@ -1,0 +1,108 @@
+import os
+import cv2
+import numpy as np
+
+# We try to import TensorFlow. If it's not installed (e.g., due to env issues), we will fallback gracefully.
+try:
+    import tensorflow as tf
+    TF_AVAILABLE = True
+except ImportError:
+    TF_AVAILABLE = False
+    print("WARNING: TensorFlow is not installed. Falling back to mock AI inference.")
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'waste_detection_model.h5')
+
+# Categories matching the training script
+CATEGORIES = ['Plastic', 'Metal', 'Glass', 'Paper', 'Organic', 'E-Waste']
+
+INSTRUCTIONS = {
+    'Plastic': 'Please clean and place in the blue recycling bin.',
+    'Metal': 'Ensure cans are empty before placing in the metal bin.',
+    'Glass': 'Handle with care. Place in the green glass recycling container.',
+    'Paper': 'Keep dry and flat. Place in the paper recycling bin.',
+    'Organic': 'Perfect for the compost bin.',
+    'E-Waste': 'Do not throw in regular bins! Take to an e-waste collection center.'
+}
+
+# Load the model once when the module is imported
+_model = None
+if TF_AVAILABLE and os.path.exists(MODEL_PATH):
+    print(f"Loading trained model from {MODEL_PATH}...")
+    try:
+        _model = tf.keras.models.load_model(MODEL_PATH)
+        print("Model loaded successfully.")
+    except Exception as e:
+        print(f"Failed to load model: {e}")
+else:
+    if TF_AVAILABLE:
+        print(f"WARNING: Model file not found at {MODEL_PATH}.")
+        print("Run `python ai_model/train_model.py` to generate the model first. Falling back to mock AI inference.")
+
+def predict_waste(image_bytes):
+    """
+    Real prediction function for waste classification using OpenCV and TensorFlow.
+    1. Decodes image_bytes using OpenCV (cv2.imdecode)
+    2. Resizes to model input size (224x224)
+    3. Normalizes pixel values
+    4. Passes to tf.keras.models.predict()
+    5. Maps output probabilities to categories
+    """
+    
+    # If model is not loaded, use the fallback mock logic
+    if _model is None:
+        import random
+        import time
+        time.sleep(1.5) # Simulate processing time
+        
+        category = random.choice(CATEGORIES)
+        confidence = round(random.uniform(85.0, 99.9), 2)
+        return {
+            "category": category,
+            "confidence": confidence,
+            "instructions": INSTRUCTIONS[category],
+            "note": "MOCK INFERENCE (Model not trained/loaded)"
+        }
+        
+    try:
+        # 1. Decode image bytes to OpenCV format (numpy array)
+        np_arr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            raise ValueError("Could not decode image bytes")
+            
+        # OpenCV uses BGR by default, convert to RGB
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # 2. Resize to 224x224 for MobileNetV2
+        img = cv2.resize(img, (224, 224))
+        
+        # 3. Normalize pixel values to [0, 1]
+        img_array = img.astype('float32') / 255.0
+        
+        # Expand dimensions to match model expected input shape (1, 224, 224, 3)
+        img_array = np.expand_dims(img_array, axis=0)
+        
+        # 4. Run inference
+        predictions = _model.predict(img_array)
+        
+        # 5. Get highest probability class
+        class_idx = np.argmax(predictions[0])
+        confidence = float(predictions[0][class_idx]) * 100
+        category = CATEGORIES[class_idx]
+        
+        return {
+            "category": category,
+            "confidence": round(confidence, 2),
+            "instructions": INSTRUCTIONS.get(category, "Please dispose of carefully.")
+        }
+        
+    except Exception as e:
+        print(f"Error during real inference: {e}")
+        # Fallback in case of image processing error
+        return {
+            "category": "Unknown",
+            "confidence": 0.0,
+            "instructions": "Error processing image. Please try again.",
+            "error": str(e)
+        }
