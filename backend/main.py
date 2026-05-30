@@ -41,6 +41,11 @@ print("="*60)
 print(f"🔍 [Deployment Check] Resolving frontend build path...")
 print(f"📂 Resolved Path: {DIST_DIR}")
 print(f"✅ Path Exists:  {os.path.exists(DIST_DIR)}")
+if os.path.exists(DIST_DIR):
+    try:
+        print(f"📁 Directory Contents: {os.listdir(DIST_DIR)}")
+    except Exception as e:
+        print(f"⚠️ Directory Listing Failed: {e}")
 print("="*60)
 
 if os.path.exists(DIST_DIR):
