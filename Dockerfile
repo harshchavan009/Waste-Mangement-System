@@ -26,7 +26,7 @@ COPY backend/ ./backend/
 # Copy the built frontend static files to the expected location
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Set the entrypoint to run the Flask app
+# Set the entrypoint to run the FastAPI app via Uvicorn
 ENV PORT=8080
 EXPOSE 8080
-CMD ["python", "backend/app.py"]
+CMD uvicorn backend.main:app --host 0.0.0.0 --port $PORT

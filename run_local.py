@@ -31,10 +31,13 @@ venv_python = os.path.join(backend_dir, 'venv', 'bin', 'python')
 if not os.path.exists(venv_python):
     venv_python = 'python' # Fallback to global Python if venv is missing
 
-# 1. Start the Flask Backend on port 5001
-print("👉 Starting Flask Backend (Port 5001)...")
+# 1. Start the FastAPI Backend on port 5001
+print("👉 Starting FastAPI Backend (Port 5001)...")
+uvicorn_path = os.path.join(backend_dir, 'venv', 'bin', 'uvicorn')
+if not os.path.exists(uvicorn_path):
+    uvicorn_path = 'uvicorn'
 backend_process = subprocess.Popen(
-    [venv_python, 'app.py'],
+    [uvicorn_path, 'main:app', '--port', '5001'],
     cwd=backend_dir
 )
 
