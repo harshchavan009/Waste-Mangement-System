@@ -1,12 +1,4 @@
-# Stage 1: Build the React frontend
-FROM node:18 AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-
-# Stage 2: Build the Python backend and assemble the application
+# Single-stage deployment for Python backend and React frontend static host
 FROM python:3.11-slim
 WORKDIR /app
 
@@ -23,8 +15,8 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy backend and AI model files
 COPY backend/ ./backend/
 
-# Copy the built frontend static files to the expected location
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+# Copy the pre-compiled frontend static files directly from the repository
+COPY frontend/dist ./frontend/dist
 
 # Set the entrypoint to run the FastAPI app via Uvicorn
 ENV PORT=8080
