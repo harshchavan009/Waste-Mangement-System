@@ -26,3 +26,10 @@ yarn-error.log*
 # AI Model
 *.h5
 dummy_dataset/
+
+# Env & Logs
+.env
+backend/.env
+backend_logs.txt
+client_errors.json
+frontend/scratch/

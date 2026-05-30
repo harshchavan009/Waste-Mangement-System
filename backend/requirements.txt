@@ -1,7 +1,7 @@
 fastapi==0.104.1
 uvicorn==0.24.0.post1
 motor==3.3.1
-pydantic==2.4.2
+pydantic>=2.5.0
 pydantic-settings==2.0.3
 python-multipart==0.0.6
 passlib[bcrypt]==1.7.4
@@ -9,3 +9,8 @@ python-jose[cryptography]==3.3.0
 opencv-python-headless
 Pillow
 numpy
+openai==1.14.2
+python-dotenv==1.0.1
+wikipedia==1.4.0
+Flask==3.1.3
+flask-cors==6.0.2

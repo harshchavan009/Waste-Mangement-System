@@ -22,3 +22,12 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #059669;
 }
+
+@keyframes vertical-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+.animate-vertical-scroll {
+  animation: vertical-scroll 20s linear infinite;
+}

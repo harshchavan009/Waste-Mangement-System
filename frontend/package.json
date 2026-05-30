@@ -10,15 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^9.88.16",
+    "@react-three/fiber": "^8.15.11",
     "axios": "^1.6.0",
     "framer-motion": "^10.16.4",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.292.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.18.0",
     "recharts": "^2.9.0",
-    "react-leaflet": "^4.2.1",
-    "leaflet": "^1.9.4"
+    "three": "^0.150.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",
