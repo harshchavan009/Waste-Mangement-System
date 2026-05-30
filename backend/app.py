@@ -379,7 +379,8 @@ def client_log():
     import sys
     data = request.json
     try:
-        with open('/Users/harsh/Desktop/Waste Management/client_errors.json', 'w') as f:
+        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'client_errors.json')
+        with open(log_path, 'w') as f:
             json.dump(data, f, indent=2)
     except Exception as e:
         print("Telemetry save error:", e, file=sys.stderr)
