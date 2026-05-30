@@ -26,11 +26,25 @@ app.include_router(predict.router, prefix="/api/predict", tags=["AI Classificati
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(extra_api.router, prefix="/api", tags=["Extra Services"])
 
-# Path to the compiled React frontend
+# Robust path resolution to locate the React frontend build folder
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
 
+if not os.path.exists(DIST_DIR):
+    # Try relative to the current working directory
+    DIST_DIR = os.path.abspath(os.path.join(os.getcwd(), 'frontend', 'dist'))
+
+if not os.path.exists(DIST_DIR):
+    # Try inside the backend folder (in case it was built there)
+    DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
+
+print("="*60)
+print(f"🔍 [Deployment Check] Resolving frontend build path...")
+print(f"📂 Resolved Path: {DIST_DIR}")
+print(f"✅ Path Exists:  {os.path.exists(DIST_DIR)}")
+print("="*60)
+
 if os.path.exists(DIST_DIR):
-    # Mount assets folder
+    # Mount assets folder for static files (CSS, JS, images)
     app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")), name="assets")
 
     # Add fallback routing for SPA (React Router)
@@ -40,14 +54,19 @@ if os.path.exists(DIST_DIR):
         if fallback_path.startswith("api/"):
             return JSONResponse(status_code=404, content={"error": "Not Found"})
         
-        # Check if the file exists in the dist directory
+        # Check if the file exists directly in the dist directory (e.g., manifest.json, favicon.ico)
         file_path = os.path.join(DIST_DIR, fallback_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
             
+        # Return index.html for all React SPA routes
         return FileResponse(os.path.join(DIST_DIR, "index.html"))
 else:
     @app.get("/")
     async def root():
-        return {"message": "Welcome to EcoVision AI API (Frontend build missing)"}
+        return {
+            "message": "Welcome to EcoVision AI API",
+            "status": "Frontend build folder missing. Expected at: " + DIST_DIR
+        }
+
 
