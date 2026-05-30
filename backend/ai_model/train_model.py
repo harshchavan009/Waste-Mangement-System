@@ -1,28 +1,29 @@
 import os
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, models, transforms
+from torch.utils.data import DataLoader
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
-from tensorflow.keras.models import Model
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from PIL import Image
 
 # Configuration
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
-EPOCHS = 10
+EPOCHS = 3
 NUM_CLASSES = 6
 CATEGORIES = ['Plastic', 'Metal', 'Glass', 'Paper', 'Organic', 'E-Waste']
-MODEL_SAVE_PATH = 'waste_detection_model.h5'
-DATASET_DIR = 'dummy_dataset'
+MODEL_SAVE_PATH = os.path.join(os.path.dirname(__file__), 'waste_detection_model.pth')
+DATASET_DIR = os.path.join(os.path.dirname(__file__), 'dummy_dataset')
 
 def create_synthetic_dataset():
     """
     Creates a small dummy dataset locally so the script can run out-of-the-box.
-    For a real-world scenario, replace 'dummy_dataset' with your actual dataset folder
-    containing subfolders for each category.
+    For a real-world scenario, replace 'dummy_dataset' with your actual dataset folder.
     """
-    print("Creating synthetic dataset for demonstration purposes...")
+    print("Creating synthetic dataset for PyTorch training...")
     os.makedirs(DATASET_DIR, exist_ok=True)
     
     for category in CATEGORIES:
@@ -43,30 +44,22 @@ def build_model():
     """
     Builds a Transfer Learning model using MobileNetV2.
     """
-    print("Building MobileNetV2 based model...")
-    # Load MobileNetV2 without the top fully-connected layers
-    base_model = MobileNetV2(
-        weights='imagenet', 
-        include_top=False, 
-        input_shape=(224, 224, 3)
-    )
+    print("Building PyTorch MobileNetV2 based model...")
+    # Load MobileNetV2 pretrained weights
+    weights = models.MobileNet_V2_Weights.DEFAULT
+    model = models.mobilenet_v2(weights=weights)
     
     # Freeze the base model layers
-    base_model.trainable = False
-    
-    # Add custom top layers for our specific 6 classes
-    x = base_model.output
-    x = GlobalAveragePooling2D()(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    predictions = Dense(NUM_CLASSES, activation='softmax')(x)
-    
-    model = Model(inputs=base_model.input, outputs=predictions)
-    
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
+    for param in model.parameters():
+        param.requires_grad = False
+        
+    # Replace the final classification layer
+    num_features = model.classifier[1].in_features
+    model.classifier[1] = nn.Sequential(
+        nn.Linear(num_features, 128),
+        nn.ReLU(),
+        nn.Dropout(0.5),
+        nn.Linear(128, NUM_CLASSES)
     )
     
     return model
@@ -75,48 +68,72 @@ def train():
     # 1. Prepare data
     create_synthetic_dataset()
     
-    # Use ImageDataGenerator for data augmentation
-    datagen = ImageDataGenerator(
-        rescale=1./255,
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        horizontal_flip=True,
-        validation_split=0.2 # 80% train, 20% val
-    )
+    # Image transforms for training & validation
+    data_transforms = {
+        'train': transforms.Compose([
+            transforms.Resize(IMG_SIZE),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(20),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+        'val': transforms.Compose([
+            transforms.Resize(IMG_SIZE),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+    }
     
-    print("Loading training data...")
-    train_generator = datagen.flow_from_directory(
-        DATASET_DIR,
-        target_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        class_mode='categorical',
-        subset='training'
-    )
+    # Load full dataset
+    full_dataset = datasets.ImageFolder(DATASET_DIR, transform=data_transforms['train'])
     
-    print("Loading validation data...")
-    val_generator = datagen.flow_from_directory(
-        DATASET_DIR,
-        target_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        class_mode='categorical',
-        subset='validation'
-    )
+    # Split train/val (80% train, 20% val)
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, val_size])
+    
+    # Apply val transforms to validation set
+    val_dataset.dataset.transform = data_transforms['val']
+    
+    # Create DataLoaders
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     # 2. Build Model
     model = build_model()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.classifier.parameters(), lr=0.001)
     
     # 3. Train Model
     print("Starting training...")
-    model.fit(
-        train_generator,
-        epochs=EPOCHS,
-        validation_data=val_generator
-    )
-    
+    for epoch in range(EPOCHS):
+        model.train()
+        running_loss = 0.0
+        corrects = 0
+        
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item() * inputs.size(0)
+            _, preds = torch.max(outputs, 1)
+            corrects += torch.sum(preds == labels.data)
+            
+        epoch_loss = running_loss / train_size
+        epoch_acc = corrects.double() / train_size
+        print(f"Epoch {epoch+1}/{EPOCHS} - Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+        
     # 4. Save Model
-    print(f"Saving model to {MODEL_SAVE_PATH}...")
-    model.save(MODEL_SAVE_PATH)
+    print(f"Saving PyTorch model to {MODEL_SAVE_PATH}...")
+    torch.save(model, MODEL_SAVE_PATH)
     print("Training complete! Model saved successfully.")
 
 if __name__ == "__main__":

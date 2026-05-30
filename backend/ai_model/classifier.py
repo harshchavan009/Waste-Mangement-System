@@ -2,15 +2,15 @@ import os
 import cv2
 import numpy as np
 
-# We try to import TensorFlow. If it's not installed (e.g., due to env issues), we will fallback gracefully.
 try:
-    import tensorflow as tf
-    TF_AVAILABLE = True
+    import torch
+    import torchvision.transforms as transforms
+    TORCH_AVAILABLE = True
 except ImportError:
-    TF_AVAILABLE = False
-    print("WARNING: TensorFlow is not installed. Falling back to mock AI inference.")
+    TORCH_AVAILABLE = False
+    print("WARNING: PyTorch is not installed. Falling back to mock AI inference.")
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'waste_detection_model.h5')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'waste_detection_model.pth')
 
 # Categories matching the training script
 CATEGORIES = ['Plastic', 'Metal', 'Glass', 'Paper', 'Organic', 'E-Waste']
@@ -26,30 +26,39 @@ INSTRUCTIONS = {
 
 # Load the model once when the module is imported
 _model = None
-if TF_AVAILABLE and os.path.exists(MODEL_PATH):
-    print(f"Loading trained model from {MODEL_PATH}...")
+if TORCH_AVAILABLE and os.path.exists(MODEL_PATH):
+    print(f"Loading trained PyTorch model from {MODEL_PATH}...")
     try:
-        _model = tf.keras.models.load_model(MODEL_PATH)
+        # Load the model directly to CPU for inference
+        _model = torch.load(MODEL_PATH, map_location=torch.device('cpu'), weights_only=False)
+        _model.eval() # Set model to evaluation mode
         print("Model loaded successfully.")
     except Exception as e:
         print(f"Failed to load model: {e}")
 else:
-    if TF_AVAILABLE:
+    if TORCH_AVAILABLE:
         print(f"WARNING: Model file not found at {MODEL_PATH}.")
-        print("Run `python ai_model/train_model.py` to generate the model first. Falling back to mock AI inference.")
+        print("Run `python backend/ai_model/train_model.py` to generate the model first. Falling back to mock AI inference.")
+
+# Standard ImageNet transforms matching MobileNetV2
+_transform = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
 
 def predict_waste(image_bytes):
     """
-    Real prediction function for waste classification using OpenCV and TensorFlow.
+    Real prediction function for waste classification using OpenCV and PyTorch.
     1. Decodes image_bytes using OpenCV (cv2.imdecode)
-    2. Resizes to model input size (224x224)
-    3. Normalizes pixel values
-    4. Passes to tf.keras.models.predict()
-    5. Maps output probabilities to categories
+    2. Converts to PyTorch Tensor and applies ImageNet normalization
+    3. Passes to the PyTorch model
+    4. Maps output probabilities to categories
     """
     
-    # If model is not loaded, use the fallback mock logic
-    if _model is None:
+    # If model is not loaded or PyTorch is unavailable, use the fallback mock logic
+    if _model is None or not TORCH_AVAILABLE:
         import random
         import time
         time.sleep(1.5) # Simulate processing time
@@ -74,21 +83,18 @@ def predict_waste(image_bytes):
         # OpenCV uses BGR by default, convert to RGB
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
-        # 2. Resize to 224x224 for MobileNetV2
-        img = cv2.resize(img, (224, 224))
+        # 2. Apply PyTorch transforms
+        img_tensor = _transform(img)
+        img_tensor = img_tensor.unsqueeze(0) # Add batch dimension: (1, 3, 224, 224)
         
-        # 3. Normalize pixel values to [0, 1]
-        img_array = img.astype('float32') / 255.0
-        
-        # Expand dimensions to match model expected input shape (1, 224, 224, 3)
-        img_array = np.expand_dims(img_array, axis=0)
-        
-        # 4. Run inference
-        predictions = _model.predict(img_array)
-        
-        # 5. Get highest probability class
-        class_idx = np.argmax(predictions[0])
-        confidence = float(predictions[0][class_idx]) * 100
+        # 3. Run inference
+        with torch.no_grad():
+            outputs = _model(img_tensor)
+            probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
+            
+        # 4. Get highest probability class
+        class_idx = torch.argmax(probabilities).item()
+        confidence = probabilities[class_idx].item() * 100
         category = CATEGORIES[class_idx]
         
         return {
