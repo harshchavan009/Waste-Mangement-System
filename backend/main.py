@@ -37,6 +37,14 @@ if not os.path.exists(DIST_DIR):
     # Try inside the backend folder (in case it was built there)
     DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
 
+@app.get("/debug")
+async def debug():
+    return {
+        "cwd": os.getcwd(),
+        "dist_dir": DIST_DIR,
+        "exists": os.path.exists(DIST_DIR)
+    }
+
 print("="*60)
 print(f"🔍 [Deployment Check] Resolving frontend build path...")
 print(f"📂 Resolved Path: {DIST_DIR}")
