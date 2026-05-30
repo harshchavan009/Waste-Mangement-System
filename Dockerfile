@@ -22,7 +22,6 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Copy backend and AI model files
 COPY backend/ ./backend/
-COPY ai_model/ ./ai_model/
 
 # Copy the built frontend static files to the expected location
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
