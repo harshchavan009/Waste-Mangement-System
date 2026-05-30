@@ -16,6 +16,18 @@
     <!-- Leaflet CSS for Map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script>
+      (function() {
+        const apiEnvVal = "%VITE_API_URL%";
+        window.__API_URL__ = (apiEnvVal.startsWith('%') && apiEnvVal.endsWith('%')) ? '' : apiEnvVal;
+        const originalFetch = window.fetch;
+        window.fetch = function (input, init) {
+          if (typeof input === 'string' && input.startsWith('/api/')) {
+            input = window.__API_URL__ + input;
+          }
+          return originalFetch(input, init);
+        };
+      })();
+
       window.onerror = function(message, source, lineno, colno, error) {
         fetch('/api/log', {
           method: 'POST',
