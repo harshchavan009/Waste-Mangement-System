@@ -2,10 +2,10 @@ import os
 os.environ["OPENCV_AVFOUNDATION_SKIP_AUTH"] = "1"
 import cv2
 import numpy as np
+from torchvision import transforms
 
 try:
     import torch
-    import torchvision.transforms as transforms
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
