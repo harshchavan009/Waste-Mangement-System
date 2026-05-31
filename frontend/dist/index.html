@@ -17,6 +17,26 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script>
       (function() {
+        // Self-healing: Unregister old service workers and clear caches once to break any cache death loops
+        if ('serviceWorker' in navigator && !localStorage.getItem('sw-force-cleared-v4')) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          });
+          if (window.caches) {
+            caches.keys().then(names => {
+              for (let name of names) {
+                caches.delete(name);
+              }
+            });
+          }
+          localStorage.setItem('sw-force-cleared-v4', 'true');
+          setTimeout(() => {
+            window.location.reload();
+          }, 600);
+        }
+
         const apiEnvVal = "%VITE_API_URL%";
         window.__API_URL__ = (apiEnvVal.startsWith('%') && apiEnvVal.endsWith('%')) ? '' : apiEnvVal;
         const originalFetch = window.fetch;
@@ -56,8 +76,8 @@
         });
       });
     </script>
-    <script type="module" crossorigin src="/assets/index-8af07c66.js"></script>
-    <link rel="stylesheet" href="/assets/index-f6d96352.css">
+    <script type="module" crossorigin src="/assets/index-c89ea43e.js"></script>
+    <link rel="stylesheet" href="/assets/index-eba8ec36.css">
   </head>
   <body class="bg-gray-50 dark:bg-darker text-gray-900 dark:text-gray-100 transition-colors duration-300">
     <div id="root"></div>

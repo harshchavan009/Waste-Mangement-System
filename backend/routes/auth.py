@@ -4,6 +4,7 @@ from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
 from config.db import get_db
+import os
 
 router = APIRouter()
 
@@ -11,7 +12,7 @@ router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT configuration
-SECRET_KEY = "ecovision_super_secret_key_change_in_production"
+SECRET_KEY = os.getenv("JWT_SECRET", "ecovision_super_secret_key_change_in_production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 

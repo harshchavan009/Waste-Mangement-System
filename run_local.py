@@ -36,9 +36,12 @@ print("👉 Starting FastAPI Backend (Port 5001)...")
 uvicorn_path = os.path.join(backend_dir, 'venv', 'bin', 'uvicorn')
 if not os.path.exists(uvicorn_path):
     uvicorn_path = 'uvicorn'
+backend_env = os.environ.copy()
+backend_env["OPENCV_AVFOUNDATION_SKIP_AUTH"] = "1"
 backend_process = subprocess.Popen(
     [uvicorn_path, 'main:app', '--port', '5001'],
-    cwd=backend_dir
+    cwd=backend_dir,
+    env=backend_env
 )
 
 # Wait a brief moment to ensure backend starts before Vite tries to connect proxy

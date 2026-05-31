@@ -6,6 +6,63 @@
   .glassmorphism {
     @apply bg-white bg-opacity-70 backdrop-blur-lg border border-white border-opacity-20 shadow-lg dark:bg-dark dark:bg-opacity-70 dark:border-gray-800;
   }
+
+  .glass-login-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 
+      0 8px 32px 0 rgba(16, 185, 129, 0.05),
+      0 0 20px 2px rgba(16, 185, 129, 0.15),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark .glass-login-card {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.4),
+      0 0 25px 3px rgba(16, 185, 129, 0.2),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-login-card:hover {
+    border-color: rgba(16, 185, 129, 0.45);
+    box-shadow: 
+      0 12px 40px 0 rgba(16, 185, 129, 0.1),
+      0 0 35px 5px rgba(16, 185, 129, 0.3),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .glass-login-card:hover {
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 
+      0 12px 40px 0 rgba(0, 0, 0, 0.5),
+      0 0 40px 6px rgba(16, 185, 129, 0.35),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .digital-grid {
+    background-image: 
+      linear-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 185, 129, 0.08) 1px, transparent 1px);
+    background-size: 50px 50px;
+    background-position: center center;
+    animation: grid-move 28s linear infinite;
+  }
+
+  @keyframes grid-move {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 50px 50px;
+    }
+  }
 }
 
 /* Custom Scrollbar */

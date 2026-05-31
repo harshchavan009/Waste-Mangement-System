@@ -1,19 +1,21 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Camera, BarChart2, AlertTriangle, User } from 'lucide-react';
+import { AuthContext } from '../context/AuthContext';
 
 export default function BottomNavbar() {
   const location = useLocation();
   const activePath = location.pathname;
+  const { user } = useContext(AuthContext);
 
   const navItems = [
     { path: '/', label: 'Home', icon: Home },
     { path: '/classify', label: 'Scan', icon: Camera },
-    { path: '/dashboard', label: 'Dashboard', icon: BarChart2 },
+    user && { path: '/dashboard', label: 'Dashboard', icon: BarChart2 },
     { path: '/report', label: 'Complaints', icon: AlertTriangle },
     { path: '/auth', label: 'Profile', icon: User }
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:hidden bg-slate-900/90 dark:bg-black/95 backdrop-blur-lg border border-white/10 rounded-2xl p-2 px-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ecovision-pwa-cache-v2';
+const CACHE_NAME = 'ecovision-pwa-cache-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -36,6 +36,11 @@ self.addEventListener('fetch', event => {
   if (!event.request.url.startsWith('http')) return;
 
   const url = new URL(event.request.url);
+
+  // Bypass service worker caching for dynamic API calls
+  if (url.pathname.startsWith('/api/')) {
+    return; // Natively handle in the browser, bypassing SW completely
+  }
 
   // Network-First strategy for pages and compiled assets to prevent cache-locking issues
   if (event.request.mode === 'navigate' || url.pathname.includes('/assets/')) {

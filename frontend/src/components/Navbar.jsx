@@ -3,6 +3,7 @@ import { Sun, Moon, Recycle, Menu, X, User, Globe, Bell, Shield, Radio, Terminal
 import { useState, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LanguageContext } from '../context/LanguageContext';
+import { AuthContext } from '../context/AuthContext';
 
 const NAV_DICT = {
   English: { home: "Home", classify: "AI Classification", dash: "Dashboard", bins: "Smart Bins", routes: "Routes", fleet: "Fleet", forecast: "AI Forecast", cctv: "Live CCTV", report: "Report Issue", rewards: "Rewards", market: "EcoToken Market", login: "Login" },
@@ -15,6 +16,7 @@ export default function Navbar({ darkMode, toggleDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const { language, setLanguage } = useContext(LanguageContext);
+  const { user, logout } = useContext(AuthContext);
   
   const [showFCM, setShowFCM] = useState(false);
   const [fcmLogs, setFcmLogs] = useState([
@@ -125,14 +127,18 @@ export default function Navbar({ darkMode, toggleDarkMode }) {
             <div className="ml-10 flex items-baseline space-x-3 text-sm">
               <Link to="/" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.home}</Link>
               <Link to="/classify" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.classify}</Link>
-              <Link to="/dashboard" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.dash}</Link>
-              <Link to="/bins" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.bins}</Link>
-              <Link to="/routes" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.routes}</Link>
-              <Link to="/fleet" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-blue-500">{t.fleet}</Link>
-              <Link to="/cctv" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-red-500 animate-pulse">{t.cctv}</Link>
               <Link to="/report" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.report}</Link>
-              <Link to="/rewards" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-yellow-500 flex items-center gap-1">{t.rewards}</Link>
-              <Link to="/marketplace" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-emerald-500 font-bold border border-emerald-500/30 bg-emerald-500/10">{t.market}</Link>
+              {user && (
+                <>
+                  <Link to="/dashboard" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.dash}</Link>
+                  <Link to="/bins" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.bins}</Link>
+                  <Link to="/routes" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors">{t.routes}</Link>
+                  <Link to="/fleet" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-blue-500">{t.fleet}</Link>
+                  <Link to="/cctv" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-red-500 animate-pulse">{t.cctv}</Link>
+                  <Link to="/rewards" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-yellow-500 flex items-center gap-1">{t.rewards}</Link>
+                  <Link to="/marketplace" className="hover:text-primary px-2 py-2 rounded-md font-medium transition-colors text-emerald-500 font-bold border border-emerald-500/30 bg-emerald-500/10">{t.market}</Link>
+                </>
+              )}
             </div>
           </div>
           <div className="hidden md:flex items-center gap-4 relative">
@@ -169,10 +175,24 @@ export default function Navbar({ darkMode, toggleDarkMode }) {
             <button onClick={toggleDarkMode} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
-            <Link to="/auth" className="flex items-center gap-2 bg-primary hover:bg-emerald-600 text-white px-4 py-2 rounded-full font-medium transition-transform hover:scale-105 shadow-lg shadow-emerald-500/30">
-              <User className="h-4 w-4" />
-              {t.login}
-            </Link>
+            {user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                  {user.name}
+                </span>
+                <button 
+                  onClick={logout}
+                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-full font-bold text-xs transition-transform hover:scale-105 shadow-lg shadow-red-500/30"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <Link to="/auth" className="flex items-center gap-2 bg-primary hover:bg-emerald-600 text-white px-4 py-2 rounded-full font-medium transition-transform hover:scale-105 shadow-lg shadow-emerald-500/30">
+                <User className="h-4 w-4" />
+                {t.login}
+              </Link>
+            )}
           </div>
           <div className="-mr-2 flex md:hidden">
             <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
@@ -193,15 +213,19 @@ export default function Navbar({ darkMode, toggleDarkMode }) {
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               <Link to="/" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">Home</Link>
               <Link to="/classify" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">AI Classification</Link>
-              <Link to="/dashboard" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">Dashboard</Link>
-              <Link to="/bins" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">Smart Bins</Link>
-              <Link to="/routes" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">{t.routes}</Link>
-              <Link to="/fleet" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-blue-500">{t.fleet}</Link>
-              <Link to="/forecast" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">{t.forecast}</Link>
-              <Link to="/cctv" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-red-500">Live CCTV</Link>
               <Link to="/report" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">Report Issue</Link>
-              <Link to="/rewards" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-yellow-500">Rewards</Link>
-              <Link to="/marketplace" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-emerald-500 bg-emerald-500/10">EcoToken Market</Link>
+              {user && (
+                <>
+                  <Link to="/dashboard" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">Dashboard</Link>
+                  <Link to="/bins" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">Smart Bins</Link>
+                  <Link to="/routes" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">{t.routes}</Link>
+                  <Link to="/fleet" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-blue-500">{t.fleet}</Link>
+                  <Link to="/forecast" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium">{t.forecast}</Link>
+                  <Link to="/cctv" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-red-500">Live CCTV</Link>
+                  <Link to="/rewards" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-yellow-500">Rewards</Link>
+                  <Link to="/marketplace" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-emerald-500 bg-emerald-500/10">EcoToken Market</Link>
+                </>
+              )}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button 
                   onClick={() => { setShowFCM(true); setIsOpen(false); }} 
@@ -213,7 +237,19 @@ export default function Navbar({ darkMode, toggleDarkMode }) {
                 <button onClick={toggleDarkMode} className="p-2">
                   {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </button>
-                <Link to="/auth" onClick={() => setIsOpen(false)} className="bg-primary text-white px-4 py-2 rounded-md font-medium">Login</Link>
+                {user ? (
+                  <div className="flex items-center justify-between w-full px-2">
+                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{user.name}</span>
+                    <button 
+                      onClick={() => { logout(); setIsOpen(false); }} 
+                      className="bg-red-500 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-md active:scale-95"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <Link to="/auth" onClick={() => setIsOpen(false)} className="bg-primary text-white px-4 py-2 rounded-md font-medium">Login</Link>
+                )}
               </div>
             </div>
           </motion.div>

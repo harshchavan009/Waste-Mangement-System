@@ -242,6 +242,10 @@ export default function RouteOptimization() {
     }, 50);
   };
 
+  const isValidCoords = (c) => Array.isArray(c) && c.length === 2 && typeof c[0] === 'number' && typeof c[1] === 'number' && !isNaN(c[0]) && !isNaN(c[1]);
+
+  const mapCenterSafe = isValidCoords(mapCenter) ? mapCenter : center;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -343,35 +347,35 @@ export default function RouteOptimization() {
                  </div>
               </div>
 
-              <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%', zIndex: 0 }}>
-                <ChangeView center={mapCenter} />
+              <MapContainer center={mapCenterSafe} zoom={13} style={{ height: '100%', width: '100%', zIndex: 0 }}>
+                <ChangeView center={mapCenterSafe} />
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 
                 {/* Draw nodes */}
-                {routeData.coordinates.map((pos, idx) => (
+                {routeData.coordinates.map((pos, idx) => isValidCoords(pos) && (
                   <Marker 
                     key={`node-${idx}`} 
                     position={pos} 
                     icon={routeData.nodes[idx] === 'Depot' ? depotIcon : (collectedBins.includes(idx) ? completedBinIcon : binIcon)}
                   >
                     <Popup>
-                      <div className="text-center font-bold">
-                         <div>{routeData.nodes[idx]}</div>
-                         {routeData.nodes[idx] !== 'Depot' && (
-                           <div className={`text-xs mt-1 ${collectedBins.includes(idx) ? 'text-emerald-500' : 'text-red-500'}`}>
-                             Status: {collectedBins.includes(idx) ? '♻️ Cleared' : '🚨 Full - Pending Collection'}
-                           </div>
-                         )}
-                      </div>
+                       <div className="text-center font-bold">
+                          <div>{routeData.nodes[idx]}</div>
+                          {routeData.nodes[idx] !== 'Depot' && (
+                            <div className={`text-xs mt-1 ${collectedBins.includes(idx) ? 'text-emerald-500' : 'text-red-500'}`}>
+                              Status: {collectedBins.includes(idx) ? '♻️ Cleared' : '🚨 Full - Pending Collection'}
+                            </div>
+                          )}
+                       </div>
                     </Popup>
                   </Marker>
                 ))}
                 
                 {/* Live Truck Tracker */}
-                {truckPos && (
+                {truckPos && isValidCoords(truckPos) && (
                   <Marker position={truckPos} icon={truckIcon} zIndexOffset={1000}>
                     <Popup>
                        <div className="text-center">
@@ -385,7 +389,7 @@ export default function RouteOptimization() {
                 )}
 
                 {/* Pollution Heatmap Layer */}
-                {showHeatmap && heatmap.map((spot, idx) => (
+                {showHeatmap && heatmap.map((spot, idx) => isValidCoords([spot.lat, spot.lng]) && (
                   <Circle
                     key={`heat-${idx}`}
                     center={[spot.lat, spot.lng]}
@@ -397,23 +401,23 @@ export default function RouteOptimization() {
                     }}
                   >
                     <Popup>
-                      <div className="text-center font-bold">
+                       <div className="text-center font-bold">
                         <div className="text-orange-500">{spot.label}</div>
                         <div className="text-xs text-gray-500">Pollution Intensity: {(spot.intensity * 100).toFixed(0)}%</div>
-                      </div>
+                       </div>
                     </Popup>
                   </Circle>
                 ))}
 
                 {/* Anomalies */}
-                {anomalies.map((anomaly) => (
+                {anomalies.map((anomaly) => isValidCoords(anomaly.coords) && (
                   <Marker key={anomaly.id} position={anomaly.coords} icon={anomalyIcon}>
                     <Popup>{anomaly.type} - {anomaly.verified ? 'Verified' : 'Unverified'}</Popup>
                   </Marker>
                 ))}
 
                 {/* Live Drone Tracker */}
-                {activeDrone && (
+                {activeDrone && isValidCoords(activeDrone.pos) && (
                   <>
                     <Marker position={activeDrone.pos} icon={droneIcon} zIndexOffset={2000}>
                       <Popup>Recon Drone (Status: {activeDrone.status})</Popup>
@@ -430,7 +434,7 @@ export default function RouteOptimization() {
                 )}
 
                 {/* Phone GPS Live Location markers */}
-                {userGPS && (
+                {userGPS && isValidCoords(userGPS) && (
                   <>
                     <CircleMarker 
                       center={userGPS} 
@@ -455,7 +459,7 @@ export default function RouteOptimization() {
                 {/* Dijkstra Path Polyline */}
                 {routeData.coordinates.length > 0 && (
                   <Polyline 
-                    positions={routeData.coordinates} 
+                    positions={routeData.coordinates.filter(isValidCoords)} 
                     color="#10b981" 
                     weight={6} 
                     opacity={0.8} 

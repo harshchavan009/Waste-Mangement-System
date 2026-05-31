@@ -1,3 +1,5 @@
+import os
+os.environ["OPENCV_AVFOUNDATION_SKIP_AUTH"] = "1"
 from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 import random
@@ -7,8 +9,16 @@ import math
 from datetime import datetime, timedelta
 import cv2
 import numpy as np
-import os
 import sys
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+try:
+    openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+except Exception:
+    openai_client = None
 
 router = APIRouter()
 
@@ -248,6 +258,58 @@ async def scan_brand(file: UploadFile = File(...)):
         "note": "Powered by EcoVision Barcode Engine"
     }
 
+import urllib.request
+import json
+import ssl
+
+GEMINI_API_KEY = "AIzaSyBC_YCjuDTKIAmmn39IYQr36Vh8uZvWj00"
+
+def call_gemini(user_msg: str, language: str) -> str:
+    system_instruction = (
+        "You are EcoVision, a highly intelligent and concise waste management assistant for a smart city. "
+        "Answer questions regarding recycling, waste disposal, environmental impact, and smart city infrastructure. "
+        "Keep responses under 3 sentences for text-to-speech clarity. "
+        "If the question is about weather or pickup schedules or bin statuses, answer using these live city details:\n"
+        "1. Weather: Clear, 24°C, optimal for operations.\n"
+        "2. Schedule: TRK-101 is en route to Downtown Square (ETA: 10:30 AM), TRK-102 is patrolling Central Park (ETA: 2:15 PM), and TRK-103 is dispatched to Main Station (ETA: 4:00 PM).\n"
+        "3. Bins: BIN-101 (Downtown Square, 85% capacity, critical), BIN-102 (Central Park, 45% capacity, warning), BIN-103 (Main Station, 92% capacity, critical), BIN-104 (University Campus, 15% capacity, good).\n"
+        f"If the user asks in Hindi, Marathi, or Spanish, respond in that target language. Target Language: {language}."
+    )
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": f"Instructions:\n{system_instruction}\n\nUser Question:\n{user_msg}"
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 800
+        }
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    
+    try:
+        context = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, timeout=6, context=context) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+            return text.strip()
+    except Exception as e:
+        print("Gemini API Error:", e)
+        return None
+
 @router.post("/chat")
 async def chat_with_ai(request: Request):
     # Parse form or JSON
@@ -266,19 +328,61 @@ async def chat_with_ai(request: Request):
         language = form_data.get('language', 'English')
         has_image = 'image' in form_data
 
+    print(f"[CHAT DEBUG] content_type: {repr(content_type)}")
+    print(f"[CHAT DEBUG] user_message: {repr(user_message)}")
+    print(f"[CHAT DEBUG] language: {repr(language)}")
+
+    # Try Gemini API first (real LLM connection)
+    gemini_reply = call_gemini(user_message, language)
+    print(f"[CHAT DEBUG] gemini_reply: {repr(gemini_reply)}")
+    if gemini_reply:
+        return {"response": gemini_reply, "success": True}
+
+    # Try real OpenAI client next if API key is configured
+    if openai_client:
+        try:
+            prompt = user_message
+            if language != "English":
+                prompt += f" (Please provide your entire response in {language})"
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are EcoVision, a highly intelligent and concise waste management assistant. Answer questions regarding recycling, waste disposal, environmental impact, and smart city infrastructure. Keep responses under 3 sentences for text-to-speech clarity."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            ai_reply = response.choices[0].message.content
+            return {"response": ai_reply, "success": True}
+        except Exception as e:
+            print("OpenAI Error:", e)
+
+    # Fallback response generator with broad domain matching
     fallback_response = "I am EcoVision AI. How can I assist you with waste sorting or reporting today?"
     lower_msg = user_message.lower()
-    if any(word in lower_msg for word in ["dry cell", "cell", "cells", "battery", "batteries", "e-waste", "electronics"]):
+    
+    if any(word in lower_msg for word in ["weather", "whether", "forecast", "rain", "clear", "heat"]):
+        fallback_response = "Today's weather forecast is Clear. The temperature is 24°C, which is optimal for drone patrols and standard garbage truck routes. Tonnage levels are expected to be normal today."
+    elif any(word in lower_msg for word in ["schedule", "shedule", "time", "when", "pickup", "collect"]):
+        fallback_response = "Today's collection schedule: TRK-101 is en route to Downtown Square (ETA: 10:30 AM), TRK-102 is patrolling Central Park (ETA: 2:15 PM), and TRK-103 is dispatched to Main Station (ETA: 4:00 PM)."
+    elif any(word in lower_msg for word in ["bin", "bins", "status", "statuses", "level", "levels"]):
+        fallback_response = "Here are the current smart bin statuses: BIN-101 (Downtown Square, 85% capacity, critical), BIN-102 (Central Park, 45% capacity, warning), BIN-103 (Main Station, 92% capacity, critical), BIN-104 (University Campus, 15% capacity, good)."
+    elif any(word in lower_msg for word in ["hello", "hi", "hey", "greetings", "good morning", "good afternoon"]):
+        fallback_response = "Hello! I am EcoVision, your smart city waste management assistant. How can I help you with recycling guidelines, bin statuses, route optimization, or scheduling today?"
+    elif any(word in lower_msg for word in ["who are you", "what are you", "your name"]):
+        fallback_response = "I am EcoVision AI, an intelligent waste management helper designed to assist smart cities with autonomous sorting, recycling guidelines, and optimized collection routes."
+    elif any(word in lower_msg for word in ["route", "optimize", "dijkstra", "algorithm", "shortest"]):
+        fallback_response = "I use Dijkstra's algorithm to calculate the shortest path between critical bins (fill levels >= 50%) and the central Depot, taking real-time traffic multipliers into account."
+    elif any(word in lower_msg for word in ["dry cell", "cell", "cells", "battery", "batteries", "e-waste", "electronics", "phone", "computer"]):
         fallback_response = "Dry cells, batteries, and electronics are classified as **Hazardous E-Waste**. They contain toxic heavy metals like mercury, lead, and lithium. You must never throw them in regular trash or standard recycling bins. Please bring them to a designated municipal e-waste collection center."
-    elif any(word in lower_msg for word in ["plastic", "bottle", "wrapper", "bag"]):
+    elif any(word in lower_msg for word in ["plastic", "bottle", "wrapper", "bag", "cola"]):
         fallback_response = "Please clean plastic items before recycling. They should be placed in the blue recycling bin so they can be processed into new fiber products."
     elif any(word in lower_msg for word in ["glass", "jar"]):
         fallback_response = "Glass should be handled carefully and placed in the green recycling container. It can be infinitely recycled into new bottles."
-    elif any(word in lower_msg for word in ["compost", "food", "organic"]):
+    elif any(word in lower_msg for word in ["compost", "food", "organic", "banana", "apple", "vegetable"]):
         fallback_response = "Organic waste like fruit peels and food scraps is perfect for composting. It will naturally break down into nutrient-rich fertilizer for gardens. Please use the green/brown compost bin."
     elif any(word in lower_msg for word in ["paper", "cardboard", "box"]):
         fallback_response = "Paper and cardboard should be kept dry and flat. Place them in the blue recycling bin."
-    elif any(word in lower_msg for word in ["metal", "can", "aluminum"]):
+    elif any(word in lower_msg for word in ["metal", "can", "aluminum", "tin"]):
         fallback_response = "Metal cans should be rinsed out before recycling. They are highly valuable and should go in the blue recycling bin."
     elif has_image:
         fallback_response = "Based on the image you uploaded, this looks like recyclable material. Please clean it and place it in the recycling bin."
@@ -525,23 +629,107 @@ async def get_forecast(payload: dict = Body(...)):
         }
     }
 
+def draw_mock_scenery(frame, camera_id):
+    # Draw simple perspective graphics so it looks like a real street/park camera view
+    if camera_id == '1': # Downtown Square
+        # Road lane lines (perspective lines converging)
+        cv2.line(frame, (100, 480), (280, 200), (80, 80, 80), 2)
+        cv2.line(frame, (540, 480), (360, 200), (80, 80, 80), 2)
+        # Sidewalk curb
+        cv2.line(frame, (40, 480), (240, 200), (120, 120, 120), 3)
+        # Building outline on left
+        cv2.rectangle(frame, (0, 0), (180, 260), (50, 50, 50), -1)
+        cv2.rectangle(frame, (20, 40), (60, 100), (100, 100, 100), 2)
+        cv2.rectangle(frame, (100, 40), (140, 100), (100, 100, 100), 2)
+        cv2.rectangle(frame, (20, 150), (60, 210), (100, 100, 100), 2)
+        cv2.rectangle(frame, (100, 150), (140, 210), (100, 100, 100), 2)
+    elif camera_id == '2': # Central Park West
+        # Pathway
+        cv2.ellipse(frame, (320, 480), (260, 140), 0, 180, 360, (70, 70, 70), -1)
+        # Tree trunks and foliage in background
+        cv2.line(frame, (80, 320), (80, 180), (30, 40, 50), 6)
+        cv2.circle(frame, (80, 150), 35, (30, 80, 50), -1)
+        cv2.circle(frame, (60, 130), 25, (40, 95, 60), -1)
+        cv2.line(frame, (560, 340), (560, 200), (30, 40, 50), 7)
+        cv2.circle(frame, (560, 160), 45, (40, 90, 60), -1)
+        # Park bench
+        cv2.rectangle(frame, (380, 320), (480, 345), (60, 70, 80), -1)
+        cv2.line(frame, (390, 345), (390, 375), (60, 70, 80), 3)
+        cv2.line(frame, (470, 345), (470, 375), (60, 70, 80), 3)
+    elif camera_id == '3': # Industrial Zone B
+        # Fence posts and lines
+        for x in range(0, 640, 80):
+            cv2.line(frame, (x, 300), (x, 480), (70, 70, 70), 2)
+        cv2.line(frame, (0, 350), (640, 350), (60, 60, 60), 2)
+        cv2.line(frame, (0, 410), (640, 410), (60, 60, 60), 2)
+        # Warehouse silhouette
+        cv2.rectangle(frame, (200, 120), (440, 340), (48, 48, 48), -1)
+        cv2.rectangle(frame, (260, 200), (380, 340), (25, 25, 25), -1)
+        # Oil barrels
+        cv2.circle(frame, (120, 380), 15, (60, 60, 70), -1)
+        cv2.rectangle(frame, (105, 380), (135, 420), (60, 60, 70), -1)
+    elif camera_id == '4': # Residential Block 4
+        # Sidewalk
+        cv2.line(frame, (0, 380), (640, 380), (95, 95, 95), 4)
+        # House outlines
+        cv2.rectangle(frame, (60, 160), (230, 380), (52, 52, 52), -1)
+        # Roof
+        pts1 = np.array([[40, 160], [145, 90], [250, 160]], np.int32)
+        cv2.fillPoly(frame, [pts1], (80, 48, 48))
+        # House 2
+        cv2.rectangle(frame, (420, 200), (580, 380), (58, 58, 58), -1)
+        pts2 = np.array([[400, 200], [500, 130], [600, 200]], np.int32)
+        cv2.fillPoly(frame, [pts2], (88, 55, 55))
+
 def generate_cctv_frames(camera_id):
     frame_count = 0
     while True:
-        frame = np.ones((480, 640, 3), dtype=np.uint8) * 40
-        cv2.putText(frame, f"CAM {camera_id} - LIVE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        cv2.putText(frame, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        # Create dark base frame
+        frame = np.ones((480, 640, 3), dtype=np.uint8) * 35
         
-        label = "Clear"
-        color = (0, 255, 0)
-        if camera_id == '1':
-            label = "Overflowing Bin"
-            color = (0, 0, 255)
-            x = 200 + int(math.sin(frame_count * 0.1) * 20)
-            y = 150 + int(math.cos(frame_count * 0.05) * 10)
-            cv2.rectangle(frame, (x, y), (x+100, y+150), color, 2)
-            cv2.putText(frame, f"YOLOv8: {label}", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+        # 1. Draw mock vector scenery to look like an actual camera scene
+        draw_mock_scenery(frame, camera_id)
         
+        # 2. Draw live bottom HUD overlays to avoid overlapping HTML text in the top-left corner
+        # Date & Time (Bottom-Right)
+        time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cv2.putText(frame, time_str, (430, 460), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 255, 0), 1)
+        
+        # Camera identifier & status (Bottom-Left)
+        is_analyzed = camera_id in ['1', '2', '3']
+        hud_label = f"CAM {camera_id} - " + ("YOLOv8 ANALYZED" if is_analyzed else "RAW STREAM")
+        hud_color = (0, 0, 255) if is_analyzed else (0, 255, 0)
+        cv2.putText(frame, hud_label, (15, 460), cv2.FONT_HERSHEY_SIMPLEX, 0.5, hud_color, 2)
+        
+        # 3. Draw live simulated YOLO bounding boxes corresponding to the Surviellance Logs
+        dx = int(math.sin(frame_count * 0.08) * 15)
+        dy = int(math.cos(frame_count * 0.06) * 10)
+        
+        if camera_id == '1': # Overflowing Bin (Red critical alert)
+            x1, y1 = 250 + dx, 180 + dy
+            x2, y2 = 360 + dx, 320 + dy
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(frame, "YOLOv8: Overflowing Bin", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 0, 255), 2)
+            
+        elif camera_id == '2': # Littering wrapper on pathway (Yellow warning alert)
+            x1, y1 = 220 + dx, 320 + dy
+            x2, y2 = 290 + dx, 360 + dy
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+            cv2.putText(frame, "YOLOv8: Littering (Plastic)", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 255, 255), 2)
+            
+        elif camera_id == '3': # Illegal Dumping by industrial zone (Red critical alert)
+            x1, y1 = 270 + dx, 220 + dy
+            x2, y2 = 390 + dx, 310 + dy
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(frame, "YOLOv8: Illegal Dumping", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 0, 255), 2)
+            
+        elif camera_id == '4': # Regular trash bin in residential area (Green normal check)
+            x1, y1 = 100, 270
+            x2, y2 = 160, 360
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            cv2.putText(frame, "YOLOv8: Bin (Clear)", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+
+        # Encode JPG frame
         ret, buffer = cv2.imencode('.jpg', frame)
         frame_bytes = buffer.tobytes()
         yield (b'--frame\r\n'

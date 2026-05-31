@@ -1,4 +1,5 @@
 import os
+os.environ["OPENCV_AVFOUNDATION_SKIP_AUTH"] = "1"
 import random
 import time
 from flask import Flask, request, jsonify, send_from_directory
